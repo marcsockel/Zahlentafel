@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Zahlentafel – Grundschule</title>
+<link rel="icon" href="icon.webp">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html { height:100%; overflow:hidden; touch-action:manipulation; }
+body {
+  background:#fff; color:#2c3540;
+  font-family:'Segoe UI',system-ui,sans-serif;
+  height:100%; display:flex; flex-direction:column;
+  overflow:hidden; user-select:none; -webkit-user-select:none;
+}
+#toolbar {
+  display:flex; align-items:center; flex-wrap:wrap; gap:10px;
+  padding:7px 14px; background:#1e6bb8; border-bottom:1px solid #15589a;
+  box-shadow:0 1px 6px rgba(0,0,0,.07);
+  z-index:20; min-height:48px; flex-shrink:0;
+}
+@media (max-height: 820px) {
+  #toolbar { padding:4px 10px; gap:6px; min-height:36px; }
+  .vbtn { padding:3px 8px; font-size:11px; }
+  select.t-sel { padding:3px 6px; font-size:11px; }
+}
+.t-group { display:flex; align-items:center; gap:5px; }
+.t-sep   { width:1px; height:20px; background:rgba(255,255,255,.3); flex-shrink:0; }
+.t-label { font-size:11px; color:rgba(255,255,255,.85); white-space:nowrap; }
+.vbtn {
+  background:rgba(255,255,255,.14); color:#fff;
+  border:1px solid rgba(255,255,255,.35); border-radius:5px;
+  padding:4px 11px; font-size:12px; cursor:pointer;
+  transition:background .12s,color .12s; white-space:nowrap; font-family:inherit;
+}
+.vbtn:hover  { background:rgba(255,255,255,.26); }
+.vbtn.active { background:#fff; color:#1e6bb8; border-color:#fff; font-weight:700; }
+select.t-sel {
+  background:#fff; color:#1e3a5f; border:1px solid #fff; border-radius:5px;
+  padding:4px 8px; font-size:12px; cursor:pointer; font-family:inherit;
+}
+.app-icon { height:30px; width:30px; border-radius:7px; vertical-align:middle; margin-right:6px; }
+
+#wrap { flex:1; position:relative; overflow:hidden; background:#fff; display:flex; align-items:center; justify-content:center; }
+#hint-label {
+  position:absolute; top:10px; right:13px;
+  font-size:10.5px; font-weight:600; letter-spacing:1.2px;
+  color:rgba(60,90,135,.55); pointer-events:none;
+}
+#pane-label {
+  position:absolute; top:10px; left:13px;
+  font-size:10.5px; font-weight:600; letter-spacing:1.8px;
+  color:rgba(60,90,135,.55); pointer-events:none;
+}
+
+/* ── Tafel ── */
+.zt { display:grid; border:3px solid #333; background:#fff; }
+.zt .c {
+  display:flex; align-items:center; justify-content:center;
+  border-right:1px solid #9aa4b0; border-bottom:1px solid #9aa4b0;
+  font-weight:600; color:#1e2a38; cursor:pointer; position:relative;
+  transition:background .12s;
+}
+.zt .c:hover { background:#f1f6fc; }
+.zt .c.r5 { border-right:2.5px solid #555; }      /* 5er-Linie senkrecht */
+.zt .c.b5 { border-bottom:2.5px solid #555; }     /* 5er-Linie waagerecht */
+.zt .c.lastc { border-right:none; }
+.zt .c.lastr { border-bottom:none; }
+.zt .c.leer { color:transparent; }
+.zt .c.leer::after { content:''; }
+.zt .c.auf { color:#2563eb; font-weight:800; background:#eef4ff; animation:pop .25s; }
+.zt .c.weg { color:transparent; background:#f6f7f9; }
+@keyframes pop { 0%{transform:scale(.6)} 100%{transform:scale(1)} }
+
+/* ── Ausschnitte ── */
+#pieces { display:grid; justify-content:center; align-content:center; }
+.piece { display:flex; align-items:center; justify-content:center; }
+.piece .pg { display:grid; }
+.piece .c {
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid #555; margin:-1px; background:#fff;
+  font-weight:600; color:#1e2a38; cursor:pointer;
+  box-shadow:3px 3px 0 rgba(0,0,0,.10);
+}
+.piece .c.gegeben { background:#eef4ff; font-weight:800; cursor:default; }
+.piece .c.leer { color:transparent; }
+.piece .c.leer:hover { background:#f1f6fc; }
+.piece .c.auf { color:#2563eb; font-weight:800; background:#fff; animation:pop .25s; }
+.piece .c.none { visibility:hidden; box-shadow:none; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <div class="t-group">
+    <span style="font-size:15px;font-weight:700;color:#1e6bb8;letter-spacing:.2px"><img class="app-icon" src="icon.webp" alt="">Zahlentafel</span>
+  </div>
+  <div class="t-sep"></div>
+  <div class="t-group">
+    <span class="t-label">Zahlenraum:</span>
+    <select id="raum-sel" class="t-sel"></select>
+  </div>
+  <div class="t-sep"></div>
+  <div class="t-group">
+    <span class="t-label">Darstellung:</span>
+    <select id="modus-sel" class="t-sel">
+      <option value="voll">Alles ausgefüllt</option>
+      <option value="luecken">Mit Lücken</option>
+      <option value="stuecke">Ausschnitte</option>
+    </select>
+  </div>
+  <div class="t-group" id="hilfe-grp">
+    <span class="t-label">Hilfe:</span>
+    <select id="hilfe-sel" class="t-sel"></select>
+  </div>
+  <div class="t-group" id="anzahl-grp">
+    <span class="t-label">Anzahl:</span>
+    <select id="anzahl-sel" class="t-sel">
+      <option>2</option><option>3</option><option selected>4</option><option>6</option><option>8</option>
+    </select>
+  </div>
+  <div class="t-sep"></div>
+  <div class="t-group">
+    <button class="vbtn" id="neu-btn" title="Neue Aufgabe">🔄 Neu</button>
+    <button class="vbtn" id="alle-btn" title="Alle Zahlen zeigen">👁 Alle zeigen</button>
+    <button class="vbtn" id="reset-btn" title="Zurück zum Anfang">↺ Zurücksetzen</button>
+  </div>
+</div>
+
+<div id="wrap">
+  <div id="pane-label">ZAHLENTAFEL</div>
+  <div id="hint-label"></div>
+  <div id="stage"></div>
+</div>
+
+<script>
+/* ═══ Zustand ═══ */
+var raum = 1;            // 1 → 1–100, 2 → 101–200 …
+var modus = 'voll';      // voll | luecken | stuecke
+var hilfe = 8;
+var anzahl = 4;
+var weg = new Set();     // voll: ausgeblendete Felder (1–100)
+var zeigen = new Set();  // luecken: vorgegebene Felder
+var auf = new Set();     // luecken/stuecke: aufgedeckte Felder
+var pieces = [];
+
+function off(){ return (raum-1)*100; }
+function rnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function shuffle(a){ for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;} return a; }
+
+/* ═══ Hilfe-Stufen (wie in Blattwerk) ═══ */
+var HILFE = [
+  { t:'Keine Hilfe' },
+  { t:'Nur erste und letzte Zahl', fix:[1,100] },
+  { t:'Ca. 5 Zahlen zufällig', rnd:5 },
+  { t:'Linke Spalte', links:true },
+  { t:'Linke + rechte Spalte', links:true, rechts:true },
+  { t:'Eine Diagonale', diag:true },
+  { t:'Ca. 10 Zahlen zufällig', rnd:10 },
+  { t:'Linke Spalte + 10 Zahlen', links:true, rnd:10 },
+  { t:'Ca. 20 Zahlen zufällig', rnd:20 },
+  { t:'Links + rechts + 20 Zahlen', links:true, rechts:true, rnd:20 },
+  { t:'Ca. 40 Zahlen zufällig', rnd:40 },
+  { t:'Ca. 60 Zahlen zufällig', rnd:60 }
+];
+function genZeigen(){
+  var H = HILFE[hilfe]; zeigen = new Set();
+  (H.fix||[]).forEach(function(k){ zeigen.add(k); });
+  for(var r=0;r<10;r++){
+    if(H.links) zeigen.add(r*10+1);
+    if(H.rechts) zeigen.add(r*10+10);
+    if(H.diag) zeigen.add(r*11+1);
+  }
+  if(H.rnd){
+    var frei=[]; for(var k=1;k<=100;k++) if(!zeigen.has(k)) frei.push(k);
+    shuffle(frei).slice(0,H.rnd).forEach(function(k){ zeigen.add(k); });
+  }
+}
+
+/* ═══ Ausschnitte (Formen wie in Blattwerk) ═══ */
+var SHAPES = [
+  [[0,1],[1,0],[1,1],[1,2],[2,1]],             // Plus
+  [[0,0],[1,0],[2,0],[2,1],[2,2]],             // L
+  [[0,2],[1,2],[2,2],[2,1],[2,0]],             // L gespiegelt
+  [[0,0],[0,1],[0,2],[1,0],[2,0]],             // Γ
+  [[0,0],[1,0],[2,0],[1,1],[0,2],[1,2],[2,2]], // H
+  [[0,0],[0,1],[0,2],[1,1],[2,1]],             // T
+  [[2,0],[2,1],[2,2],[1,1],[0,1]],             // T umgedreht
+  [[0,0],[1,1],[2,2],[3,3]],                   // Diagonale ↘
+  [[0,3],[1,2],[2,1],[3,0]],                   // Diagonale ↙
+  [[0,0],[0,1],[1,0],[1,1]],                   // Quadrat
+  [[0,0],[1,0],[2,0],[2,1],[2,2],[1,2],[0,2]], // U
+  [[0,0],[0,1],[0,2],[1,0],[1,2],[2,0],[2,1],[2,2]], // Ring
+  [[0,0],[1,0],[1,1],[2,1],[2,2]],             // Treppe
+  [[0,0],[0,2],[1,1],[2,0],[2,2]],             // X
+  [[0,0],[0,1],[1,1],[2,1],[2,2]]              // Z
+];
+function genPieces(){
+  pieces=[]; var used=shuffle(SHAPES.map(function(_,i){return i;}));
+  for(var n=0;n<anzahl;n++){
+    var cells=SHAPES[used[n%used.length]];
+    var maxdr=Math.max.apply(null,cells.map(function(c){return c[0];}));
+    var maxdc=Math.max.apply(null,cells.map(function(c){return c[1];}));
+    pieces.push({cells:cells,maxdr:maxdr,maxdc:maxdc,R:rnd(0,9-maxdr),C:rnd(0,9-maxdc),given:rnd(0,cells.length-1)});
+  }
+}
+
+/* ═══ Neu / Zurücksetzen ═══ */
+function neu(){
+  weg=new Set(); auf=new Set();
+  if(modus==='luecken') genZeigen();
+  if(modus==='stuecke') genPieces();
+  render();
+}
+function reset(){ weg=new Set(); auf=new Set(); render(); }
+function alleZeigen(){
+  weg=new Set();
+  if(modus==='luecken'){ for(var k=1;k<=100;k++) if(!zeigen.has(k)) auf.add(k); }
+  if(modus==='stuecke'){ pieces.forEach(function(p,pi){ p.cells.forEach(function(_,i){ if(i!==p.given) auf.add(pi*100+i); }); }); }
+  render();
+}
+
+/* ═══ Zeichnen ═══ */
+var stage=document.getElementById('stage');
+var wrap=document.getElementById('wrap');
+function fontFor(cs){ var L=String(off()+100).length; return Math.min(cs*0.46, cs*0.84/(L*0.58)); }
+
+function render(){
+  document.getElementById('hilfe-grp').style.display = modus==='luecken' ? '' : 'none';
+  document.getElementById('anzahl-grp').style.display = modus==='stuecke' ? '' : 'none';
+  var hint={voll:'Tippen: Zahl verschwindet · nochmal: Zahl erscheint',
+            luecken:'Tippen: Zahl erscheint · nochmal: Zahl verschwindet',
+            stuecke:'Leeres Feld tippen: Zahl erscheint'}[modus];
+  document.getElementById('hint-label').textContent=hint.toUpperCase();
+  if(modus==='stuecke') renderPieces(); else renderTafel();
+}
+
+function renderTafel(){
+  var W=wrap.clientWidth-60, H=wrap.clientHeight-60;
+  var cs=Math.floor(Math.min(W,H)/10);
+  var fs=fontFor(cs), o=off();
+  var html='<div class="zt" style="grid-template-columns:repeat(10,'+cs+'px);grid-auto-rows:'+cs+'px;font-size:'+fs+'px">';
+  for(var k=1;k<=100;k++){
+    var r=Math.floor((k-1)/10), c=(k-1)%10, cls='c';
+    if(c===4) cls+=' r5'; if(r===4) cls+=' b5';
+    if(c===9) cls+=' lastc'; if(r===9) cls+=' lastr';
+    if(modus==='voll'){ if(weg.has(k)) cls+=' weg'; }
+    else { if(!zeigen.has(k)) cls+= auf.has(k)?' auf':' leer'; }
+    html+='<div class="'+cls+'" data-k="'+k+'">'+(o+k)+'</div>';
+  }
+  stage.innerHTML=html+'</div>';
+}
+
+function renderPieces(){
+  var n=pieces.length, W=wrap.clientWidth-60, H=wrap.clientHeight-60, gap=28, best=null;
+  // Raster wählen: jedes Stück bekommt ein Feld von 4×4 Zellen
+  for(var cols=1;cols<=n;cols++){
+    var rows=Math.ceil(n/cols);
+    var cs=Math.min((W-gap*(cols-1))/(cols*4.2),(H-gap*(rows-1))/(rows*4.2), 90);
+    if(!best||cs>best.cs+0.5) best={cols:cols,cs:cs};
+  }
+  var cs=Math.floor(best.cs), fs=fontFor(cs), o=off(), slot=Math.ceil(cs*4.2);
+  var html='<div id="pieces" style="grid-template-columns:repeat('+best.cols+','+slot+'px);grid-auto-rows:'+slot+'px;gap:'+gap+'px">';
+  pieces.forEach(function(p,pi){
+    var map={}; p.cells.forEach(function(c,i){ map[c[0]+','+c[1]]=i; });
+    html+='<div class="piece"><div class="pg" style="grid-template-columns:repeat('+(p.maxdc+1)+','+cs+'px);grid-auto-rows:'+cs+'px;font-size:'+fs+'px">';
+    for(var dr=0;dr<=p.maxdr;dr++) for(var dc=0;dc<=p.maxdc;dc++){
+      var i=map[dr+','+dc];
+      if(i===undefined){ html+='<div class="c none"></div>'; continue; }
+      var num=o+(p.R+dr)*10+(p.C+dc)+1, cls='c';
+      if(i===p.given) cls+=' gegeben'; else cls+= auf.has(pi*100+i)?' auf':' leer';
+      html+='<div class="'+cls+'" data-p="'+(pi*100+i)+'">'+num+'</div>';
+    }
+    html+='</div></div>';
+  });
+  stage.innerHTML=html+'</div>';
+}
+
+/* ═══ Antippen ═══ */
+stage.addEventListener('click',function(e){
+  var el=e.target.closest('.c'); if(!el) return;
+  if(el.dataset.k){
+    var k=+el.dataset.k;
+    if(modus==='voll'){ weg.has(k)?weg.delete(k):weg.add(k); }
+    else if(!zeigen.has(k)){ auf.has(k)?auf.delete(k):auf.add(k); }
+    else return;
+    render();
+  } else if(el.dataset.p && !el.classList.contains('gegeben')){
+    var id=+el.dataset.p; auf.has(id)?auf.delete(id):auf.add(id); render();
+  }
+});
+
+/* ═══ Bedienelemente ═══ */
+var raumSel=document.getElementById('raum-sel');
+for(var h=1;h<=10;h++){ var op=document.createElement('option'); op.value=h; op.textContent=((h-1)*100+1)+' – '+(h*100); raumSel.appendChild(op); }
+var hilfeSel=document.getElementById('hilfe-sel');
+HILFE.forEach(function(H,i){ var op=document.createElement('option'); op.value=i; op.textContent=H.t; if(i===hilfe) op.selected=true; hilfeSel.appendChild(op); });
+
+raumSel.addEventListener('change',function(){ raum=+raumSel.value; reset(); });
+document.getElementById('modus-sel').addEventListener('change',function(e){ modus=e.target.value; neu(); });
+hilfeSel.addEventListener('change',function(){ hilfe=+hilfeSel.value; neu(); });
+document.getElementById('anzahl-sel').addEventListener('change',function(e){ anzahl=+e.target.value; neu(); });
+document.getElementById('neu-btn').addEventListener('click',neu);
+document.getElementById('alle-btn').addEventListener('click',alleZeigen);
+document.getElementById('reset-btn').addEventListener('click',reset);
+window.addEventListener('resize',render);
+
+neu();
+</script>
+<!-- APP-SWITCHER:START -->
+<style>
+#app-sw-title{cursor:pointer;user-select:none;-webkit-user-select:none;border-radius:8px;padding:4px 8px;margin:-4px -8px;transition:background .15s}
+#app-sw-title{color:#fff!important}#app-sw-title:hover,#app-sw-title.open{background:rgba(255,255,255,.16)}
+#app-sw-title::after{content:"▼";display:inline-block;margin-left:8px;padding:3px 7px;font-size:15px;line-height:1;vertical-align:middle;color:#1e6bb8;background:#fff;border-radius:7px}
+#app-sw-backdrop{position:fixed;inset:0;z-index:9998;display:none}
+#app-sw-menu{position:fixed;z-index:9999;display:none;background:#fff;border-radius:14px;box-shadow:0 10px 32px rgba(20,40,80,.25);padding:8px;min-width:250px;font-family:'Segoe UI',system-ui,sans-serif}
+#app-sw-menu a{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:10px;font-size:18px;font-weight:600;color:#1e3a5f;text-decoration:none}
+#app-sw-menu a:hover{background:#eef4fb}
+#app-sw-menu a.current{background:#1e6bb8;color:#fff;pointer-events:none}
+#app-sw-menu .ico{width:38px;height:38px;border-radius:8px;flex-shrink:0}
+</style>
+<div id="app-sw-backdrop"></div>
+<div id="app-sw-menu" role="menu"></div>
+<script>
+(function(){
+  var APPS=[
+    {id:'Stellenwert',     ico:'🔢', name:'Stellenwerttafel'},
+    {id:'Wuerfelnetze',    ico:'🧩', name:'Würfelnetz'},
+    {id:'Wuerfelgebaeude', ico:'🧊', name:'Würfelgebäude'},
+    {id:'Symmetrie',       ico:'🔁', name:'Symmetrie'},
+    {id:'Zahlentafel',     ico:'🔢', name:'Zahlentafel'}
+  ];
+  var title=document.querySelector('#toolbar span[style*="#1e6bb8"]')||document.querySelector('span[style*="#1e6bb8"]');
+  if(!title) return;
+  title.id='app-sw-title';
+  title.setAttribute('role','button');
+  title.title='App wechseln';
+  var menu=document.getElementById('app-sw-menu'), bd=document.getElementById('app-sw-backdrop');
+  var path=decodeURIComponent(location.pathname);
+  APPS.forEach(function(a){
+    var el=document.createElement('a');
+    el.href='../'+a.id+'/index.html';
+    el.innerHTML='<img class="ico" src="../'+a.id+'/icon.webp" alt="">'+a.name;
+    if(path.indexOf('/'+a.id+'/')>=0 || path.slice(-a.id.length-1)==='/'+a.id) el.className='current';
+    menu.appendChild(el);
+  });
+  function open(){var r=title.getBoundingClientRect();menu.style.left=Math.max(6,r.left-8)+'px';menu.style.top=(r.bottom+8)+'px';menu.style.display='block';bd.style.display='block';title.classList.add('open');}
+  function close(){menu.style.display='none';bd.style.display='none';title.classList.remove('open');}
+  title.addEventListener('click',function(e){e.stopPropagation();menu.style.display==='block'?close():open();});
+  bd.addEventListener('click',close);
+  bd.addEventListener('touchstart',function(e){e.preventDefault();close();},{passive:false});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
+})();
+</script>
+<!-- APP-SWITCHER:END -->
+</body>
+</html>
